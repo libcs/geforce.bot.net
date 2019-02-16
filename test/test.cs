@@ -36,25 +36,13 @@ public static class test
     static void RUN_TEST(string name, Action test_function)
     {
         Console.Write($"{name}\n");
-        //if (!InitializeRtmp())
-        //{
-        //    Console.Write("error: failed to initialize rtmp\n");
-        //    Environment.Exit(1);
-        //}
         test_function();
-        //ShutdownRtmp();
     }
 
     static void RUN_TESTASYNC(string name, Func<Task> test_function)
     {
         Console.Write($"{name}\n");
-        //if (!InitializeRtmp())
-        //{
-        //    Console.Write("error: failed to initialize rtmp\n");
-        //    Environment.Exit(1);
-        //}
         test_function().Wait();
-        //ShutdownRtmp();
     }
 
 #if SOAK
@@ -66,8 +54,6 @@ public static class test
     static int Main(string[] args)
     {
         Console.Write("\n");
-
-        //log_level(LOG_LEVEL_INFO);
 
 #if SOAK
         Console.CancelKeyPress += interrupt_handler;

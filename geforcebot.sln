@@ -7,6 +7,10 @@ Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "test", "test\test.csproj", 
 EndProject
 Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "geforcebot", "geforcebot\geforcebot.csproj", "{C97C207C-0901-4202-963E-78418D927E66}"
 EndProject
+Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "rtmp", "..\rtmp.io.net\rtmp\rtmp.csproj", "{CEF4E174-ACC0-4FC1-BC95-8A885F9A7799}"
+EndProject
+Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "geforcesvr", "geforcesvr\geforcesvr.csproj", "{169128D1-7D7D-40DB-A10F-CD7B0B7EE567}"
+EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
 		Debug|Any CPU = Debug|Any CPU
@@ -21,6 +25,14 @@ Global
 		{C97C207C-0901-4202-963E-78418D927E66}.Debug|Any CPU.Build.0 = Debug|Any CPU
 		{C97C207C-0901-4202-963E-78418D927E66}.Release|Any CPU.ActiveCfg = Release|Any CPU
 		{C97C207C-0901-4202-963E-78418D927E66}.Release|Any CPU.Build.0 = Release|Any CPU
+		{CEF4E174-ACC0-4FC1-BC95-8A885F9A7799}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{CEF4E174-ACC0-4FC1-BC95-8A885F9A7799}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{CEF4E174-ACC0-4FC1-BC95-8A885F9A7799}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{CEF4E174-ACC0-4FC1-BC95-8A885F9A7799}.Release|Any CPU.Build.0 = Release|Any CPU
+		{169128D1-7D7D-40DB-A10F-CD7B0B7EE567}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{169128D1-7D7D-40DB-A10F-CD7B0B7EE567}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{169128D1-7D7D-40DB-A10F-CD7B0B7EE567}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{169128D1-7D7D-40DB-A10F-CD7B0B7EE567}.Release|Any CPU.Build.0 = Release|Any CPU
 	EndGlobalSection
 	GlobalSection(SolutionProperties) = preSolution
 		HideSolutionNode = FALSE

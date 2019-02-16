@@ -5,7 +5,7 @@ namespace GeForce
 {
     public static class test
     {
-        static int Main(string[] args)
+        static int Mainx(string[] args)
         {
             Console.Write("BOT\n");
 

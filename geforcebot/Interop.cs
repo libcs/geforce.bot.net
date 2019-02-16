@@ -3,6 +3,7 @@ using System.Diagnostics;
 using System.Drawing;
 using System.Runtime.InteropServices;
 using System.Threading;
+using System.Threading.Tasks;
 
 namespace GeForce
 {
@@ -19,6 +20,31 @@ namespace GeForce
     {
         #region Interop
 
+        // MSG PUMP
+
+        [Serializable]
+        public struct MSG
+        {
+            public IntPtr hwnd;
+            public IntPtr lParam;
+            public int message;
+            public int pt_x;
+            public int pt_y;
+            public int time;
+            public IntPtr wParam;
+        }
+
+        [DllImport("user32.dll")]
+        public static extern bool GetMessage(out MSG lpMsg, IntPtr hWnd, uint wMsgFilterMin, uint wMsgFilterMax);
+
+        [DllImport("user32.dll")]
+        public static extern bool TranslateMessage([In] ref MSG lpMsg);
+
+        [DllImport("user32.dll")]
+        public static extern IntPtr DispatchMessage([In] ref MSG lpmsg);
+
+        // CURSOR
+
         [StructLayout(LayoutKind.Sequential)]
         public struct POINT
         {
@@ -33,9 +59,38 @@ namespace GeForce
         [DllImport("user32.dll")]
         static extern bool SetCursorPos(int X, int Y);
 
-        [DllImport("user32.dll")]
-        static extern void mouse_event(uint dwFlags, uint dx, uint dy, uint dwData, int dwExtraInfo);
-        //static extern void mouse_event(int dwFlags, int dx, int dy, int dwData, int dwExtraInfo);
+        // MOUSE HOOK
+
+        public delegate int HookProc(int nCode, IntPtr wParam, IntPtr lParam);
+
+        [StructLayout(LayoutKind.Sequential)]
+        public class MouseHookStruct
+        {
+            public POINT P;
+            public int Wnd;
+            public int HitTestCode;
+            public int ExtraInfo;
+        }
+
+        //For other hook types, you can obtain these values from Winuser.h in the Microsoft SDK.
+        const int WH_MOUSE = 7;
+
+        //This is the Import for the SetWindowsHookEx function.
+        //Use this function to install a thread-specific hook.
+        [DllImport("user32.dll")] //, CharSet = CharSet.Auto, CallingConvention = CallingConvention.StdCall)]
+        static extern int SetWindowsHookEx(int idHook, HookProc lpfn, IntPtr hInstance, int threadId);
+
+        //This is the Import for the UnhookWindowsHookEx function.
+        //Call this function to uninstall the hook.
+        [DllImport("user32.dll")] //, CharSet = CharSet.Auto, CallingConvention = CallingConvention.StdCall)]
+        static extern bool UnhookWindowsHookEx(int idHook);
+
+        //This is the Import for the CallNextHookEx function.
+        //Use this function to pass the hook information to the next hook procedure in chain.
+        [DllImport("user32.dll")] //, CharSet = CharSet.Auto, CallingConvention = CallingConvention.StdCall)]
+        static extern int CallNextHookEx(int idHook, int nCode, IntPtr wParam, IntPtr lParam);
+
+        // MOUSE
 
         [Flags]
         public enum MouseEventFlags : uint
@@ -51,10 +106,18 @@ namespace GeForce
         }
 
         [DllImport("user32.dll")]
-        static extern void keybd_event(byte bVk, byte bScan, uint dwFlags, UIntPtr dwExtraInfo);
+        static extern void mouse_event(uint dwFlags, uint dx, uint dy, uint dwData, int dwExtraInfo);
+        //static extern void mouse_event(int dwFlags, int dx, int dy, int dwData, int dwExtraInfo);
+
+        // KEYBOARD
 
         const int KEYEVENTF_EXTENDEDKEY = 0x1;
         const int KEYEVENTF_KEYUP = 0x2;
+
+        [DllImport("user32.dll")]
+        static extern void keybd_event(byte bVk, byte bScan, uint dwFlags, UIntPtr dwExtraInfo);
+
+        // GDI
 
         [DllImport("user32.dll")]
         static extern int GetWindowRect(IntPtr hwnd, out Rectangle rect);
@@ -73,6 +136,8 @@ namespace GeForce
             int dwRop           // raster operation code
         );
 
+        // HANDLE
+
         [DllImport("user32.dll", SetLastError = true)]
         static extern IntPtr FindWindow(string lpClassName, string lpWindowName);
 
@@ -82,6 +147,21 @@ namespace GeForce
         #endregion
 
         static readonly Random Rnd = new Random(Guid.NewGuid().GetHashCode());
+
+        // MSG PUMP
+
+        static int MsgPumpThreadId;
+        public static void MsgPump() => Task.Run(() =>
+        {
+            MsgPumpThreadId = Thread.CurrentThread.ManagedThreadId;
+            while (!GetMessage(out var msg, IntPtr.Zero, 0, 0))
+            {
+                TranslateMessage(ref msg);
+                DispatchMessage(ref msg);
+            }
+        });
+
+        // HANDLE
 
         public static IntPtr GetHandleByWindow(string windowName, string className = null) => FindWindow(className, windowName);
 
@@ -102,11 +182,45 @@ namespace GeForce
             SetForegroundWindow(handle);
         }
 
+        // CURSOR
+
         public static Point CursorPosition
         {
             get { GetCursorPos(out var lpPoint); return lpPoint; }
             set => SetCursorPos(value.X, value.Y);
         }
+
+        // MOUSEHOOK
+
+        static int hHook = 0;
+
+        public static bool MouseHook()
+        {
+            if (hHook != 0)
+                throw new InvalidOperationException("Already hooked");
+            var proc = new HookProc(MouseHookProc);
+            hHook = SetWindowsHookEx(WH_MOUSE, proc, IntPtr.Zero, MsgPumpThreadId); //AppDomain.GetCurrentThreadId()
+            return hHook != 0;
+        }
+
+        public static bool MouseUnhook()
+        {
+            if (!UnhookWindowsHookEx(hHook))
+                return false;
+            hHook = 0;
+            return true;
+        }
+
+        static int MouseHookProc(int nCode, IntPtr wParam, IntPtr lParam)
+        {
+            var MyMouseHookStruct = (MouseHookStruct)Marshal.PtrToStructure(lParam, typeof(MouseHookStruct));
+            if (nCode < 0)
+                return CallNextHookEx(hHook, nCode, wParam, lParam);
+            Console.Write($"x = {MyMouseHookStruct.P.X.ToString("d")}  y = {MyMouseHookStruct.P.Y.ToString("d")}");
+            return CallNextHookEx(hHook, nCode, wParam, lParam);
+        }
+
+        // MOUSE
 
         public static void ClickMouseButton(IntPtr handle, InteropMouseButton button, Point point, bool pause = false) =>
             ClickMouseButton(button, ConvertToScreenPixel(handle, point), pause);
@@ -138,12 +252,16 @@ namespace GeForce
             CursorPosition = tmp;
         }
 
+        // KEYBOARD
+
         public static void PressKey(byte key, bool pause = false)
         {
             keybd_event(key, 0x45, KEYEVENTF_EXTENDEDKEY, (UIntPtr)0);
             if (pause) Thread.Sleep(Rnd.Next(5, 10));
             keybd_event(key, 0x45, KEYEVENTF_EXTENDEDKEY | KEYEVENTF_KEYUP, (UIntPtr)0);
         }
+
+        // GDI
 
         public static Point ConvertToScreenPixel(IntPtr handle, Point point)
         {
