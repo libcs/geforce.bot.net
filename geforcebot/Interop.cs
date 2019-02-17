@@ -1,6 +1,8 @@
 using System;
+using System.ComponentModel;
 using System.Diagnostics;
 using System.Drawing;
+using System.Reflection;
 using System.Runtime.InteropServices;
 using System.Threading;
 using System.Threading.Tasks;
@@ -16,6 +18,7 @@ namespace GeForce
 
     //https://www.ownedcore.com/forums/diablo-3/diablo-3-bots-programs/353201-source-how-bot-c.html
     //https://social.msdn.microsoft.com/Forums/vstudio/en-US/960411ab-d7c1-4f8f-99ac-dc273f50ace2/emulate-mouse-clicks-and-key-typing?forum=csharpgeneral
+    //https://social.msdn.microsoft.com/Forums/vstudio/en-US/66807002-eba7-4756-b746-9256ace7526a/applicationrun-in-console-app?forum=csharpgeneral
     public static class Interop
     {
         #region Interop
@@ -23,25 +26,25 @@ namespace GeForce
         // MSG PUMP
 
         [Serializable]
-        public struct MSG
+        struct MSG
         {
-            public IntPtr hwnd;
+            public IntPtr hWnd;
             public IntPtr lParam;
-            public int message;
-            public int pt_x;
-            public int pt_y;
-            public int time;
+            public int Message;
+            public int Pt_x;
+            public int Pt_y;
+            public int Time;
             public IntPtr wParam;
         }
 
         [DllImport("user32.dll")]
-        public static extern bool GetMessage(out MSG lpMsg, IntPtr hWnd, uint wMsgFilterMin, uint wMsgFilterMax);
+        static extern bool GetMessage(out MSG lpMsg, IntPtr hWnd, uint wMsgFilterMin, uint wMsgFilterMax);
 
         [DllImport("user32.dll")]
-        public static extern bool TranslateMessage([In] ref MSG lpMsg);
+        static extern bool TranslateMessage([In] ref MSG lpMsg);
 
         [DllImport("user32.dll")]
-        public static extern IntPtr DispatchMessage([In] ref MSG lpmsg);
+        static extern IntPtr DispatchMessage([In] ref MSG lpmsg);
 
         // CURSOR
 
@@ -61,34 +64,43 @@ namespace GeForce
 
         // MOUSE HOOK
 
-        public delegate int HookProc(int nCode, IntPtr wParam, IntPtr lParam);
+        delegate int HookProc(int nCode, IntPtr wParam, IntPtr lParam);
+
+        //[StructLayout(LayoutKind.Sequential)]
+        //struct MouseHookStruct
+        //{
+        //    public POINT P;
+        //    public int Wnd;
+        //    public int HitTestCode;
+        //    public int ExtraInfo;
+        //}
 
         [StructLayout(LayoutKind.Sequential)]
-        public class MouseHookStruct
+        struct MSLLHOOKSTRUCT
         {
             public POINT P;
-            public int Wnd;
-            public int HitTestCode;
-            public int ExtraInfo;
+            public uint MouseData;
+            public uint Flags;
+            public uint Time;
+            public IntPtr ExtraInfo;
         }
 
         //For other hook types, you can obtain these values from Winuser.h in the Microsoft SDK.
         const int WH_MOUSE = 7;
+        const int WH_MOUSE_LL = 14;
 
-        //This is the Import for the SetWindowsHookEx function.
-        //Use this function to install a thread-specific hook.
-        [DllImport("user32.dll")] //, CharSet = CharSet.Auto, CallingConvention = CallingConvention.StdCall)]
+        [DllImport("user32.dll", CharSet = CharSet.Auto, SetLastError = true)]
         static extern int SetWindowsHookEx(int idHook, HookProc lpfn, IntPtr hInstance, int threadId);
 
-        //This is the Import for the UnhookWindowsHookEx function.
-        //Call this function to uninstall the hook.
-        [DllImport("user32.dll")] //, CharSet = CharSet.Auto, CallingConvention = CallingConvention.StdCall)]
+        [DllImport("user32.dll", CharSet = CharSet.Auto, SetLastError = true)]
+        [return: MarshalAs(UnmanagedType.Bool)]
         static extern bool UnhookWindowsHookEx(int idHook);
 
-        //This is the Import for the CallNextHookEx function.
-        //Use this function to pass the hook information to the next hook procedure in chain.
-        [DllImport("user32.dll")] //, CharSet = CharSet.Auto, CallingConvention = CallingConvention.StdCall)]
+        [DllImport("user32.dll", CharSet = CharSet.Auto, SetLastError = true)]
         static extern int CallNextHookEx(int idHook, int nCode, IntPtr wParam, IntPtr lParam);
+
+        [DllImport("kernel32.dll", CharSet = CharSet.Auto, SetLastError = true)]
+        static extern IntPtr GetModuleHandle(string lpModuleName);
 
         // MOUSE
 
@@ -150,15 +162,22 @@ namespace GeForce
 
         // MSG PUMP
 
-        static int MsgPumpThreadId;
-        public static void MsgPump() => Task.Run(() =>
+        static int MsgPumpThreadId = 0;
+        static ManualResetEventSlim MsgPumpWait = new ManualResetEventSlim();
+
+        public static void RunMsgPump() => Task.Run(() =>
         {
             MsgPumpThreadId = Thread.CurrentThread.ManagedThreadId;
+            Console.WriteLine($"Pump: Start - {MsgPumpThreadId}");
             while (!GetMessage(out var msg, IntPtr.Zero, 0, 0))
             {
+                Console.WriteLine("Pump");
+                MsgPumpWait.Set();
                 TranslateMessage(ref msg);
                 DispatchMessage(ref msg);
             }
+            Console.WriteLine("Pump: End");
+            MsgPumpThreadId = 0;
         });
 
         // HANDLE
@@ -192,32 +211,45 @@ namespace GeForce
 
         // MOUSEHOOK
 
-        static int hHook = 0;
+        static int hMouseHook = 0;
+        static HookProc fMouseHook = MouseHookProc;
 
-        public static bool MouseHook()
+        public static string MouseHook()
         {
-            if (hHook != 0)
+            if (hMouseHook != 0)
                 throw new InvalidOperationException("Already hooked");
-            var proc = new HookProc(MouseHookProc);
-            hHook = SetWindowsHookEx(WH_MOUSE, proc, IntPtr.Zero, MsgPumpThreadId); //AppDomain.GetCurrentThreadId()
-            return hHook != 0;
+            var fMouseHook = new HookProc(MouseHookProc);
+            using (var curProcess = Process.GetCurrentProcess())
+            using (var curModule = curProcess.MainModule)
+            {
+                //MsgPumpWait.Wait();
+                //hMouseHook = SetWindowsHookEx(WH_MOUSE, fMouseHook, IntPtr.Zero, MsgPumpThreadId);
+                //hMouseHook = SetWindowsHookEx(WH_MOUSE_LL, fMouseHook, IntPtr.Zero, AppDomain.GetCurrentThreadId());
+#pragma warning disable CS0618 // Type or member is obsolete
+                //hMouseHook = SetWindowsHookEx(WH_MOUSE_LL, fMouseHook, GetModuleHandle(curModule.ModuleName), 0);
+                hMouseHook = SetWindowsHookEx(WH_MOUSE_LL, fMouseHook, Marshal.GetHINSTANCE(Assembly.GetExecutingAssembly().GetModules()[0]), 0);
+#pragma warning restore CS0618 // Type or member is obsolete
+                return hMouseHook != 0 ? null : new Win32Exception(Marshal.GetLastWin32Error()).Message;
+            }
         }
 
-        public static bool MouseUnhook()
+        public static string MouseUnhook()
         {
-            if (!UnhookWindowsHookEx(hHook))
-                return false;
-            hHook = 0;
-            return true;
+            if (!UnhookWindowsHookEx(hMouseHook))
+                return new Win32Exception(Marshal.GetLastWin32Error()).Message;
+            hMouseHook = 0;
+            return null;
         }
 
         static int MouseHookProc(int nCode, IntPtr wParam, IntPtr lParam)
         {
-            var MyMouseHookStruct = (MouseHookStruct)Marshal.PtrToStructure(lParam, typeof(MouseHookStruct));
-            if (nCode < 0)
-                return CallNextHookEx(hHook, nCode, wParam, lParam);
-            Console.Write($"x = {MyMouseHookStruct.P.X.ToString("d")}  y = {MyMouseHookStruct.P.Y.ToString("d")}");
-            return CallNextHookEx(hHook, nCode, wParam, lParam);
+            Console.Write($"HERE {nCode}");
+            //if (nCode >= 0)
+            //{
+            //    var mouseHook = (MouseHookStruct)Marshal.PtrToStructure(lParam, typeof(MouseHookStruct));
+            //    Console.Write($"x = {mouseHook.P.X.ToString("d")}  y = {mouseHook.P.Y.ToString("d")}");
+            //}
+            return CallNextHookEx(hMouseHook, nCode, wParam, lParam);
         }
 
         // MOUSE
@@ -293,12 +325,5 @@ namespace GeForce
             GetScreenPixel(ConvertToScreenPixel(handle, point));
         public static Color GetScreenPixel(Point point) =>
             ((Bitmap)CopyScreen(point, 1, 1, ScreenPixel)).GetPixel(0, 0);
-
-        //static bool IsInGame()
-        //{
-        //    var pixel = ConvertToScreenPixel(new Point(125, 598));
-        //    var c = GetColorAt(pixel);
-        //    return c.Name == "ff5d574c";
-        //}
     }
 }

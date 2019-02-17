@@ -2,7 +2,6 @@ using Rtmp;
 using Rtmp.Net;
 using System;
 using System.Linq;
-using System.Runtime.InteropServices;
 using System.Threading.Tasks;
 
 namespace GeForce
@@ -78,11 +77,11 @@ namespace GeForce
         {
             Console.CancelKeyPress += Shutdown;
             Console.WriteLine("GeForce Svr. Cntl-C to exit.\n");
+            Interop.RunMsgPump();
 
             Task.Run(() => BotServerAsync());
-            Interop.MsgPump();
 
-            Console.WriteLine($"MouseHook: {Interop.MouseHook()}");
+            //Console.WriteLine($"MouseHook: {Interop.MouseHook()}");
             while (true)
             {
                 var keyInfo = Console.ReadKey(true);
