@@ -1,3 +1,4 @@
+//#define MOUSEHOOK
 using System;
 using System.ComponentModel;
 using System.Diagnostics;
@@ -210,7 +211,7 @@ namespace GeForce
         }
 
         // MOUSEHOOK
-
+#if MOUSEHOOK
         static int hMouseHook = 0;
         static HookProc fMouseHook = MouseHookProc;
 
@@ -251,6 +252,10 @@ namespace GeForce
             //}
             return CallNextHookEx(hMouseHook, nCode, wParam, lParam);
         }
+#else
+        public static string MouseHook() => null;
+        public static string MouseUnhook() => null;
+#endif
 
         // MOUSE
 
